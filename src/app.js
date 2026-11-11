@@ -23,6 +23,9 @@ app.use(
   })
 );
 
+// 1-1. 파비콘(favicon.ico) 브라우저 요청 자동 처리 (콘솔 에러 방지)
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 // 2. 요청 본문(JSON) 크기 제한 (1MB 초과 시 413 방어)
 app.use(express.json({ limit: '1mb' }));
 
