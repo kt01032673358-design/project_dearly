@@ -1,9 +1,10 @@
 // ==============================================================================
 // [Dearly 백엔드] src/lib/openai.js
-// 역할: OpenAI API를 통한 영어 일기 문법·표현 교정, 한국어 해석, 유사 표현(뉘앙스) 및 칭찬 생성
+// 역할: OpenAI API를 통한 영어 일기 교정, 한국어 해석, 뉘앙스 분석,
+//       한국어 표현 영어 변환, 영어 단어 검색 모듈
 // 보안 및 원칙:
 // 1. OPENAI_API_KEY는 서버 환경변수로만 사용하며 클라이언트에 절대 노출하지 않습니다.
-// 2. 학생의 일기 원문은 프롬프트 지시문과 분리하여 데이터로만 취급합니다(Prompt Injection 방어).
+// 2. 학생의 입력은 지시문과 분리하여 데이터로만 취급합니다(Prompt Injection 방어).
 // 3. 일기 원문은 AI 요청 후 어디에도 저장하거나 로그로 남기지 않습니다.
 // ==============================================================================
 
@@ -30,73 +31,75 @@ function getOpenAIClient() {
   return openaiClient;
 }
 
-/**
- * AI에게 전달할 시스템 지시문(System Prompt)
- * 1. 문법 교정 및 수정 설명
- * 2. 원문의 자연스러운 일상 회화체 한국어 해석
- * 3. 2~3개의 자연스러운 영어 유사 표현 및 미묘한 뉘앙스 차이 설명
- * 4. 따뜻한 영어 칭찬 한마디
- */
-const SYSTEM_PROMPT = `
-You are "Dearly", an encouraging, warm, and highly supportive English learning tutor for students.
-Your mission is to help students review their English diary/sentences, correct mistakes naturally, provide natural Korean translations, suggest 2~3 natural similar expressions with nuanced explanations, and motivate them to keep writing.
+// ==============================================================================
+// 1. 영어 일기 교정 및 분석 (강화된 교정 원칙 적용)
+// ==============================================================================
+const DIARY_SYSTEM_PROMPT = `
+You are "Dearly", an encouraging, supportive English learning tutor for students.
+Your mission is to review the student's English diary, correct mistakes accurately while respecting their original voice, provide Korean translation, offer similar expressions, and motivate them.
 
-[Guidelines]
-1. PRESERVE ORIGINAL MEANING: Do not alter the student's authentic thoughts, feelings, or facts.
-2. NATURAL CORRECTIONS: Correct spelling errors, grammar mistakes, punctuation, and awkward expressions so it sounds like natural English. If the text is already natural, keep changes to a minimal polite polish.
-3. CLEAR EXPLANATIONS (Korean): Provide up to 5 key corrections in Korean ("reason"). Keep explanations concise, gentle, and easy for students to understand.
-4. NATURAL KOREAN INTERPRETATION:
-   - Provide a natural, conversational Korean translation ("korean") for the student's original English input.
-   - Avoid rigid word-for-word translation; use natural everyday spoken Korean.
-5. SIMILAR EXPRESSIONS & NUANCES (2 to 3 items):
-   - Provide between 2 and 3 natural, authentic English alternative sentences ("english") that convey a similar meaning to the original.
-   - Do NOT just substitute random synonyms awkwardly; use real idioms, conversational patterns, or natural phrasing.
-   - For each similar expression, provide:
-     a) "korean": Natural Korean translation matching the nuance.
-     b) "nuance": A concise explanation in Korean clarifying how this expression differs subtly from the original (e.g., emphasis, formality, emotional tone, habits, etc.).
-6. WARM CHEER (English): Provide exactly ONE warm, uplifting, specific English sentence ("compliment") complimenting their effort, emotion, or story. Never give grades, scores, or rankings.
-7. JSON ONLY: You must respond ONLY with a valid JSON object matching the exact schema below.
+[CRITICAL POLICIES]
+1. DO NOT CHANGE CORRECT ENGLISH:
+   - If a sentence is already grammatically and idiomatically correct, DO NOT rewrite it.
+   - Do not replace natural beginner/intermediate words with overly advanced or literary synonyms (e.g. do not change "I went" to "I ventured" or "I proceeded").
+   - If the student's sentence is correct, keep "correctedText" identical to the original sentence.
+2. CORRECT ONLY REAL ERRORS:
+   - Correct actual spelling mistakes, grammatical errors (tenses, subject-verb agreement, prepositions, articles), and clearly broken English.
+   - Maintain the student's original tone, feelings, and factual meaning.
+3. HANDLE KOREAN & MIXED INPUT:
+   - If the input is in Korean or a mixture of Korean and English, naturally translate and complete the full English diary.
+   - Reflect the student's intended emotion and context naturally.
+4. PRESERVE PUNCTUATION, LINE BREAKS & EMOJIS:
+   - Do NOT delete emojis, special symbols, exclamation marks, quotation marks, or line breaks.
+   - Preserve line breaks and paragraph structure in "correctedText".
+5. CHANGES ARRAY (FOR ACCURATE HIGHLIGHTING):
+   - For every corrected part, include an object in "changes":
+     - "before": The exact original word or phrase that had the mistake.
+     - "after": The exact replacement word or phrase as it appears in "correctedText".
+     - "reason": A brief, friendly explanation in Korean (1 sentence).
+   - If no correction was needed, "changes" should be an empty array [].
+6. NATURAL KOREAN INTERPRETATION:
+   - "original.korean": Provide a warm, natural everyday conversational Korean translation of the input.
+7. SIMILAR EXPRESSIONS (2 to 3 items):
+   - Provide 2 or 3 natural alternative English expressions conveying a similar meaning.
+   - For each: "english", "korean", and "nuance" (explaining the subtle difference in tone/emphasis).
+8. WARM CHEER:
+   - Exactly ONE uplifting English sentence ("compliment") encouraging the student.
 
 [JSON Schema]
 {
   "original": {
-    "english": "The student's original input sentence or text",
+    "english": "Original input text",
     "korean": "자연스러운 일상 회화체 한국어 해석"
   },
-  "correctedText": "The fully corrected English text as a string",
+  "correctedText": "The fully corrected English text (preserving line breaks and correct sentences)",
+  "changes": [
+    {
+      "before": "original erroneous word/phrase",
+      "after": "corrected replacement word/phrase in correctedText",
+      "reason": "수정한 이유 (한국어로 친절하게 1문장)"
+    }
+  ],
   "corrections": [
     {
-      "original": "incorrect or awkward phrase",
+      "original": "original erroneous word/phrase",
       "corrected": "improved phrase",
-      "reason": "한국어로 작성된 친절하고 쉬운 수정 이유 (1~2문장)"
+      "reason": "수정한 이유 설명"
     }
   ],
   "similarExpressions": [
     {
-      "english": "Natural similar English expression 1",
-      "korean": "자연스러운 한국어 해석 1",
-      "nuance": "원문과의 미묘한 뉘앙스 차이 설명 (한국어로 1문장)"
-    },
-    {
-      "english": "Natural similar English expression 2",
-      "korean": "자연스러운 한국어 해석 2",
-      "nuance": "원문과의 미묘한 뉘앙스 차이 설명 (한국어로 1문장)"
+      "english": "Natural similar English expression",
+      "korean": "한국어 해석",
+      "nuance": "원문과의 뉘앙스 차이 설명"
     }
   ],
-  "compliment": "One uplifting, warm English sentence encouraging the student."
+  "compliment": "One warm, uplifting English compliment sentence."
 }
 `.trim();
 
 /**
- * 영어 일기/문장 교정 및 유사 표현 분석 요청 함수
- * @param {string} diaryText 학생이 입력한 영어 원문 (검증 완료된 문자열)
- * @returns {Promise<{
- *   original: { english: string, korean: string },
- *   correctedText: string,
- *   corrections: Array<{ original: string, corrected: string, reason: string }>,
- *   similarExpressions: Array<{ english: string, korean: string, nuance: string }>,
- *   compliment: string
- * }>}
+ * 영어 일기 교정 및 분석 함수
  */
 async function correctDiaryWithAI(diaryText) {
   const client = getOpenAIClient();
@@ -107,17 +110,15 @@ async function correctDiaryWithAI(diaryText) {
   }
 
   try {
-    // OpenAI Chat Completions API 호출
     const response = await client.chat.completions.create({
       model: modelName,
-      response_format: { type: 'json_object' }, // JSON 출력 강제
-      temperature: 0.4, // 자연스럽고 다양한 유사 표현을 위해 적절한 창의성 유지
+      response_format: { type: 'json_object' },
+      temperature: 0.3,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: DIARY_SYSTEM_PROMPT },
         {
           role: 'user',
-          // 사용자가 입력한 내용을 지시문과 분리하여 데이터로만 전달
-          content: `Here is the student's English input to review and analyze:\n"""\n${diaryText}\n"""`,
+          content: `Here is the student's diary entry to review:\n"""\n${diaryText}\n"""`,
         },
       ],
     });
@@ -127,35 +128,44 @@ async function correctDiaryWithAI(diaryText) {
       throw new Error('EMPTY_AI_RESPONSE');
     }
 
-    // JSON 파싱 및 응답 규격(Schema) 검증
     const parsed = JSON.parse(content);
 
-    // 1. 필수 필드 기본형 검증
-    const correctedText = typeof parsed.correctedText === 'string' ? parsed.correctedText.trim() : diaryText;
-    const compliment = typeof parsed.compliment === 'string' ? parsed.compliment.trim() : 'Great job writing in English today!';
+    const correctedText = typeof parsed.correctedText === 'string' ? parsed.correctedText : diaryText;
+    const compliment = typeof parsed.compliment === 'string' ? parsed.compliment.trim() : 'Great job writing today!';
 
-    // 2. 원문 및 한국어 해석 검증
-    const originalEnglish = parsed.original?.english && typeof parsed.original.english === 'string' 
-      ? parsed.original.english.trim() 
+    const originalEnglish = parsed.original?.english && typeof parsed.original.english === 'string'
+      ? parsed.original.english
       : diaryText;
     const originalKorean = parsed.original?.korean && typeof parsed.original.korean === 'string'
       ? parsed.original.korean.trim()
-      : '자연스러운 해석을 준비하고 있어요.';
+      : '자연스러운 해석입니다.';
 
-    // 3. 수정 사항 배열 검증 (최대 5개 항목으로 제한)
-    const rawCorrections = Array.isArray(parsed.corrections) ? parsed.corrections : [];
+    // 변화 사항(changes) 리스트 검증
+    const rawChanges = Array.isArray(parsed.changes) ? parsed.changes : [];
+    const sanitizedChanges = rawChanges.map((c) => ({
+      before: typeof c.before === 'string' ? c.before : '',
+      after: typeof c.after === 'string' ? c.after : '',
+      reason: typeof c.reason === 'string' ? c.reason : '자연스럽게 수정했어요.',
+    }));
+
+    // 기존 호환용 corrections
+    const rawCorrections = Array.isArray(parsed.corrections) ? parsed.corrections : sanitizedChanges.map(c => ({
+      original: c.before,
+      corrected: c.after,
+      reason: c.reason
+    }));
     const sanitizedCorrections = rawCorrections.slice(0, 5).map((item) => ({
       original: typeof item.original === 'string' ? item.original : '',
       corrected: typeof item.corrected === 'string' ? item.corrected : '',
-      reason: typeof item.reason === 'string' ? item.reason : '자연스러운 표현으로 다듬었어요.',
+      reason: typeof item.reason === 'string' ? item.reason : '자연스럽게 수정했어요.',
     }));
 
-    // 4. 유사 표현 배열 검증 (최소 2개, 최대 3개로 제어)
+    // 유사 표현 리스트 (2~3개)
     const rawSimilar = Array.isArray(parsed.similarExpressions) ? parsed.similarExpressions : [];
     const sanitizedSimilar = rawSimilar.slice(0, 3).map((item, index) => ({
       english: typeof item.english === 'string' ? item.english.trim() : `Similar expression ${index + 1}`,
       korean: typeof item.korean === 'string' ? item.korean.trim() : '해석',
-      nuance: typeof item.nuance === 'string' ? item.nuance.trim() : '뉘앙스 차이 설명',
+      nuance: typeof item.nuance === 'string' ? item.nuance.trim() : '뉘앙스 설명',
     }));
 
     return {
@@ -164,14 +174,176 @@ async function correctDiaryWithAI(diaryText) {
         korean: originalKorean,
       },
       correctedText,
+      changes: sanitizedChanges,
       corrections: sanitizedCorrections,
       similarExpressions: sanitizedSimilar,
       compliment,
     };
   } catch (err) {
-    // 보안을 위해 원문이나 API 키는 에러 로그에 노출하지 않습니다.
-    console.error('[OpenAI 호출 오류]', err.name || 'Error');
+    console.error('[OpenAI 일기 교정 오류]', err.name || 'Error');
     const customError = new Error('AI_PROCESSING_FAILED');
+    customError.status = err.status || 502;
+    throw customError;
+  }
+}
+
+// ==============================================================================
+// 2. 신규 기능 ①: 한국어 단어/문장 영어 변환
+// ==============================================================================
+const TRANSLATE_SYSTEM_PROMPT = `
+You are "Dearly", a helpful English learning tutor.
+The student is writing an English diary and wants to translate a Korean word or short phrase/sentence into natural English.
+
+[Guidelines]
+1. Provide 2 to 3 natural, authentic English expressions for the Korean input.
+2. The expressions should be suitable for a student's diary (conversational, clear, not overly complex).
+3. For each expression, provide:
+   - "english": The English expression or sentence.
+   - "korean": Natural Korean meaning.
+   - "tip": A brief tip on when or how to use it (in Korean, 1 short sentence).
+4. Return ONLY a valid JSON object matching the schema below.
+
+[JSON Schema]
+{
+  "koreanInput": "The input text",
+  "expressions": [
+    {
+      "english": "I was so tired today.",
+      "korean": "오늘은 너무 피곤했다.",
+      "tip": "일상에서 가장 자주 쓰는 자연스러운 표현이에요."
+    }
+  ]
+}
+`.trim();
+
+/**
+ * 한국어 단어/문장 영어 변환 함수
+ */
+async function translateExpressionWithAI(koreanText) {
+  const client = getOpenAIClient();
+  if (!client) {
+    const error = new Error('OPENAI_CONFIG_ERROR');
+    error.status = 500;
+    throw error;
+  }
+
+  try {
+    const response = await client.chat.completions.create({
+      model: modelName,
+      response_format: { type: 'json_object' },
+      temperature: 0.3,
+      messages: [
+        { role: 'system', content: TRANSLATE_SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: `Convert this Korean expression into natural English for a diary:\n"""\n${koreanText}\n"""`,
+        },
+      ],
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('EMPTY_AI_RESPONSE');
+    }
+
+    const parsed = JSON.parse(content);
+    const expressions = Array.isArray(parsed.expressions) ? parsed.expressions : [];
+
+    return {
+      koreanInput: koreanText,
+      expressions: expressions.slice(0, 3).map((item) => ({
+        english: typeof item.english === 'string' ? item.english.trim() : '',
+        korean: typeof item.korean === 'string' ? item.korean.trim() : '',
+        tip: typeof item.tip === 'string' ? item.tip.trim() : '',
+      })),
+    };
+  } catch (err) {
+    console.error('[OpenAI 표현 변환 오류]', err.name || 'Error');
+    const customError = new Error('TRANSLATE_FAILED');
+    customError.status = err.status || 502;
+    throw customError;
+  }
+}
+
+// ==============================================================================
+// 3. 신규 기능 ②: 영어/한국어 단어 검색 (단어사전)
+// ==============================================================================
+const DICTIONARY_SYSTEM_PROMPT = `
+You are "Dearly", an English-Korean dictionary tutor for students writing diaries.
+The user enters a Korean word (e.g. '피곤하다') OR an English word (e.g. 'excited').
+
+[Guidelines]
+1. Identify the query language and search intent.
+2. Provide between 2 and 4 of the most relevant, high-frequency word results / synonyms.
+3. For each result item, provide:
+   - "word": The English word or key phrase.
+   - "partOfSpeech": Part of speech in Korean (e.g., 형용사, 동사, 명사, 숙어).
+   - "meaning": Natural Korean definition/meaning.
+   - "example": A simple, relatable English sentence suitable for a student's diary.
+   - "exampleMeaning": Korean translation of the example sentence.
+4. Return ONLY a valid JSON object matching the schema below.
+
+[JSON Schema]
+{
+  "query": "search query",
+  "results": [
+    {
+      "word": "tired",
+      "partOfSpeech": "형용사",
+      "meaning": "피곤한, 지친",
+      "example": "I felt tired after running in gym class.",
+      "exampleMeaning": "체육 시간에 달리고 나서 피곤함을 느꼈다."
+    }
+  ]
+}
+`.trim();
+
+/**
+ * 단어 검색 함수 (한영/영한 사전)
+ */
+async function lookupWordWithAI(query) {
+  const client = getOpenAIClient();
+  if (!client) {
+    const error = new Error('OPENAI_CONFIG_ERROR');
+    error.status = 500;
+    throw error;
+  }
+
+  try {
+    const response = await client.chat.completions.create({
+      model: modelName,
+      response_format: { type: 'json_object' },
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: DICTIONARY_SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: `Look up this word/phrase for a student writing a diary:\n"""\n${query}\n"""`,
+        },
+      ],
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('EMPTY_AI_RESPONSE');
+    }
+
+    const parsed = JSON.parse(content);
+    const results = Array.isArray(parsed.results) ? parsed.results : [];
+
+    return {
+      query,
+      results: results.slice(0, 4).map((r) => ({
+        word: typeof r.word === 'string' ? r.word.trim() : '',
+        partOfSpeech: typeof r.partOfSpeech === 'string' ? r.partOfSpeech.trim() : '',
+        meaning: typeof r.meaning === 'string' ? r.meaning.trim() : '',
+        example: typeof r.example === 'string' ? r.example.trim() : '',
+        exampleMeaning: typeof r.exampleMeaning === 'string' ? r.exampleMeaning.trim() : '',
+      })),
+    };
+  } catch (err) {
+    console.error('[OpenAI 단어 검색 오류]', err.name || 'Error');
+    const customError = new Error('LOOKUP_FAILED');
     customError.status = err.status || 502;
     throw customError;
   }
@@ -179,4 +351,6 @@ async function correctDiaryWithAI(diaryText) {
 
 module.exports = {
   correctDiaryWithAI,
+  translateExpressionWithAI,
+  lookupWordWithAI,
 };

@@ -11,6 +11,7 @@ require('dotenv').config();
 
 const diaryRouter = require('./routes/diary');
 const feedbackRouter = require('./routes/feedback');
+const helperRouter = require('./routes/helper');
 
 const app = express();
 
@@ -30,10 +31,9 @@ app.get('/favicon.ico', (req, res) => res.status(204).end());
 app.use(express.json({ limit: '1mb' }));
 
 // 3. API 요청 제한 (Rate Limiting) - 과도한 API 남용 방지
-// 1분(60초) 동안 동일 IP에서 최대 20회의 요청만 허용
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 20,
+  max: 30, // 도우미 API 추가로 1분당 30회로 유연하게 조정
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -50,6 +50,7 @@ app.use('/api', apiLimiter);
 // 4. API 라우터 연결
 app.use('/api', diaryRouter);
 app.use('/api', feedbackRouter);
+app.use('/api', helperRouter); // 한국어 표현 변환 및 단어 검색 라우터
 
 // 5. 프런트엔드 정적 파일 서빙 (public 폴더)
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -68,4 +69,3 @@ app.use((err, req, res, next) => {
 });
 
 module.exports = app;
-

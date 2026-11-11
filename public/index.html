@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dearly — 나만의 따뜻한 영어 일기 & 문장 튜터</title>
-  <meta name="description" content="학생들을 위한 따뜻한 AI 영어 일기 문법 교정, 자연스러운 해석 및 유사 표현 학습 서비스 Dearly">
-  <!-- 파비콘 (브라우저 탭 아이콘 및 favicon.ico 404 에러 방지) -->
+  <meta name="description" content="학생들을 위한 따뜻한 AI 영어 일기 문법 교정, 한국어 표현 변환, 단어 검색 및 시각적 하이라이트 학습 서비스 Dearly">
+  <!-- 파비콘 (브라우저 탭 아이콘) -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>">
-  <link rel="stylesheet" href="/css/styles.css?v=2">
+  <link rel="stylesheet" href="/css/styles.css?v=3">
   <!-- 구글 폰트 적용 (부드러운 한글 & 영문 글꼴) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,24 +20,72 @@
     <header class="header">
       <div class="brand-badge">Student English Diary & Expressions</div>
       <h1 class="logo">Dearly <span>✨</span></h1>
-      <p class="tagline">오늘 하루 있었던 일이나 배우고 싶은 영어 문장을 적어보세요.<br>Dearly가 다정하게 다듬어주고, 자연스러운 우리말 해석과 뉘앙스별 유사 표현까지 알려줄게요.</p>
+      <p class="tagline">오늘 하루 있었던 일이나 배우고 싶은 영어 문장을 적어보세요.<br>단어가 생각나지 않을 땐 표현 변환과 단어 검색을 쓰고, AI가 수정한 부분은 한눈에 쏙 확인해 보세요!</p>
     </header>
 
     <!-- 2. 영어 일기/문장 작성 카드 -->
     <section class="card diary-card" aria-labelledby="diary-title">
       <div class="card-header">
         <h2 id="diary-title" class="card-title">오늘의 영어 문장·일기 쓰기</h2>
-        <span class="card-subtitle">자유롭게 영어로 한 문장 또는 일기를 작성해 보세요.</span>
+        <span class="card-subtitle">영어로 자유롭게 작성해 보세요. 한국어로 쓰셔도 자연스러운 영어로 완성해 드려요!</span>
       </div>
 
+      <!-- [신규 보조 도구 바] 한국어 표현 변환 & 단어 검색 버튼 -->
+      <div class="helper-toolbar">
+        <span class="helper-toolbar-label">✍️ 작성 도우미:</span>
+        <button id="toggle-translate-btn" class="btn-tool" type="button" aria-expanded="false">
+          🪄 한국어 표현 영어로 바꾸기
+        </button>
+        <button id="toggle-dict-btn" class="btn-tool" type="button" aria-expanded="false">
+          🔍 영어 단어 검색
+        </button>
+      </div>
+
+      <!-- [보조 도구 패널 ①] 한국어 표현 영어 변환 패널 -->
+      <div id="translate-panel" class="helper-panel hidden">
+        <div class="helper-panel-header">
+          <div class="helper-panel-title">🪄 한국어 표현 영어로 변환하기</div>
+          <button id="close-translate-panel-btn" class="btn-close" type="button" title="닫기">✕</button>
+        </div>
+        <p class="helper-panel-desc">생각이 안 나는 한국어 단어나 짧은 문장을 적어보세요. (예: 설레다, 친구와 산책하다, 오늘은 너무 피곤했다)</p>
+        <div class="helper-input-row">
+          <input type="text" id="translate-input" class="helper-input" placeholder="한국어 단어 또는 문장 입력..." maxlength="300">
+          <button id="translate-submit-btn" class="btn btn-tool-action" type="button">
+            <span class="btn-text">변환하기</span>
+            <span class="btn-spinner" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div id="translate-status" class="status-message helper-status" role="status"></div>
+        <div id="translate-results" class="helper-results"></div>
+      </div>
+
+      <!-- [보조 도구 패널 ②] 영어/한국어 단어 검색 패널 -->
+      <div id="dict-panel" class="helper-panel hidden">
+        <div class="helper-panel-header">
+          <div class="helper-panel-title">🔍 단어 사전 검색 (한영 / 영한)</div>
+          <button id="close-dict-panel-btn" class="btn-close" type="button" title="닫기">✕</button>
+        </div>
+        <p class="helper-panel-desc">궁금한 한국어 또는 영어 단어를 검색해 보세요. (예: 피곤하다, excited, 산책)</p>
+        <div class="helper-input-row">
+          <input type="text" id="dict-input" class="helper-input" placeholder="검색할 단어 입력..." maxlength="100">
+          <button id="dict-submit-btn" class="btn btn-tool-action" type="button">
+            <span class="btn-text">검색하기</span>
+            <span class="btn-spinner" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div id="dict-status" class="status-message helper-status" role="status"></div>
+        <div id="dict-results" class="helper-results"></div>
+      </div>
+
+      <!-- 일기 본문 입력창 -->
       <div class="input-group">
         <label for="diary-input" class="visually-hidden">영어 일기/문장 입력란</label>
         <textarea
           id="diary-input"
           class="text-input"
-          placeholder="Write your English sentence or diary here... (예: When I was young, I was tired too.)"
+          placeholder="Write your English sentence or diary here... (예: When I was young, I was tired too. 또는 한글/영어가 섞여도 좋아요!)"
           maxlength="5000"
-          rows="7"
+          rows="8"
         ></textarea>
         <div class="char-counter">
           <span id="diary-char-count">0</span> / 5,000자
@@ -57,12 +105,15 @@
 
     <!-- 3. 분석 및 교정 결과 카드 (결과가 있을 때만 표시) -->
     <section id="result-card" class="card result-card hidden" aria-labelledby="result-title">
-      <div class="card-header">
-        <h2 id="result-title" class="card-title">문장 분석 & 교정 결과 📖</h2>
+      <div class="card-header result-main-header">
+        <div>
+          <h2 id="result-title" class="card-title">문장 분석 & 교정 결과 📖</h2>
+          <span class="card-subtitle">AI 튜터가 정성스럽게 다듬은 분석 결과입니다.</span>
+        </div>
         <span class="badge badge-success">분석 완료</span>
       </div>
 
-      <!-- 3-1. 원문 및 자연스러운 한국어 해석 (신규 추가) -->
+      <!-- 3-1. 원문 및 자연스러운 한국어 해석 -->
       <div class="result-block original-block">
         <h3 class="result-subtitle">Original & Meaning (원문 및 자연스러운 해석)</h3>
         <div class="original-box">
@@ -77,22 +128,54 @@
         </div>
       </div>
 
-      <!-- 3-2. 교정된 전체 일기/문장 -->
+      <!-- 3-2. [신규 기능 ③] 교정된 일기 (수정 위치 시각적 하이라이트 & 전후 비교 탭) -->
       <div class="result-block">
-        <h3 class="result-subtitle">Corrected Text (교정된 문장)</h3>
-        <div id="corrected-text" class="result-content english-font"></div>
+        <div class="view-toggle-bar">
+          <h3 class="result-subtitle">Corrected Text (교정된 문장)</h3>
+          <!-- 뷰 전환 탭 버튼 -->
+          <div class="toggle-tabs" role="tablist">
+            <button id="view-highlight-tab" class="tab-btn active" role="tab" aria-selected="true" type="button">
+              💡 수정 부분 강조 보기
+            </button>
+            <button id="view-compare-tab" class="tab-btn" role="tab" aria-selected="false" type="button">
+              🔄 원문과 나란히 비교
+            </button>
+          </div>
+        </div>
+
+        <!-- 보기 1: 하이라이트 뷰 -->
+        <div id="highlight-view" class="result-content-container">
+          <div class="highlight-info-banner">
+            ✨ 보라색으로 표시된 부분이 AI가 수정한 부분이에요. 마우스를 올리거나 터치하면 <strong>수정 전 원래 단어</strong>를 확인할 수 있어요!
+          </div>
+          <div id="corrected-text" class="result-content english-font highlight-enabled"></div>
+        </div>
+
+        <!-- 보기 2: 원문과 교정문 나란히 비교 뷰 -->
+        <div id="compare-view" class="result-content-container hidden">
+          <div class="compare-columns">
+            <div class="compare-col">
+              <div class="compare-col-header original-col-title">내가 쓴 원문</div>
+              <div id="compare-original" class="compare-box original-box-text english-font"></div>
+            </div>
+            <div class="compare-col">
+              <div class="compare-col-header corrected-col-title">AI 교정문</div>
+              <div id="compare-corrected" class="compare-box corrected-box-text english-font"></div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <!-- 3-3. 수정 설명 목록 -->
+      <!-- 3-3. 수정 설명 목록 (What changed) -->
       <div id="corrections-block" class="result-block">
         <h3 class="result-subtitle">What changed (이렇게 다듬었어요)</h3>
         <div id="corrections-list" class="corrections-list"></div>
       </div>
 
-      <!-- 3-4. 유사 표현 및 뉘앙스 비교 (신규 추가) -->
+      <!-- 3-4. 유사 표현 및 뉘앙스 비교 -->
       <div id="similar-block" class="result-block">
         <h3 class="result-subtitle">Similar Expressions (다양한 유사 표현 & 뉘앙스 차이)</h3>
-        <p class="section-hint">같은 의미라도 상황과 강조하고 싶은 느낌에 따라 이렇게 다양하게 말할 수 있어요:</p>
+        <p class="section-hint">같은 의미라도 상황과 어조에 따라 이렇게 다양하게 말할 수 있어요:</p>
         <div id="similar-list" class="similar-list"></div>
       </div>
 
@@ -168,7 +251,7 @@
 
   </div>
 
-  <!-- 프런트엔드 애플리케이션 스크립트 (캐시 방지 쿼리 추가) -->
-  <script src="/js/app.js?v=2"></script>
+  <!-- 프런트엔드 애플리케이션 스크립트 (캐시 방지 쿼리 v=3) -->
+  <script src="/js/app.js?v=3"></script>
 </body>
 </html>
