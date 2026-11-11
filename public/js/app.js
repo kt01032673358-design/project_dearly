@@ -1,13 +1,13 @@
 // ==============================================================================
 // [Dearly 프런트엔드] public/js/app.js
-// 역할: 일기 교정 요청, 피드백 등록 및 최신 피드백 목록 실시간 렌더링
-// 보안 원칙: XSS 공격을 원천 방지하기 위해 사용자 입력 및 피드백 출력 시 반드시
+// 역할: 일기/문장 교정 요청, 한국어 해석 및 유사 표현(뉘앙스) 렌더링, 피드백 등록 및 목록 관리
+// 보안 원칙: XSS 공격을 원천 방지하기 위해 사용자 입력 및 AI 결과 출력 시 반드시
 //           textContent 또는 안전한 DOM 노드 생성 방식을 사용합니다.
 // ==============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
   // --- DOM 요소 참조 ---
-  // 1. 일기 작성 관련 요소
+  // 1. 일기/문장 작성 관련 요소
   const diaryInput = document.getElementById('diary-input');
   const diaryCharCount = document.getElementById('diary-char-count');
   const correctBtn = document.getElementById('correct-btn');
@@ -15,8 +15,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 2. 결과 카드 관련 요소
   const resultCard = document.getElementById('result-card');
+  const originalEnglishEl = document.getElementById('original-english');
+  const originalKoreanEl = document.getElementById('original-korean');
   const correctedTextEl = document.getElementById('corrected-text');
   const correctionsListEl = document.getElementById('corrections-list');
+  const similarListEl = document.getElementById('similar-list');
   const complimentTextEl = document.getElementById('compliment-text');
 
   // 3. 피드백 작성 관련 요소
@@ -83,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ============================================================================
-  // 2. 영어 일기 교정 요청 로직
+  // 2. 영어 일기/문장 분석 및 교정 요청 로직
   // ============================================================================
   correctBtn.addEventListener('click', async () => {
     const rawDiary = diaryInput.value;
@@ -91,20 +94,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 빈 입력 검증
     if (trimmedDiary.length === 0) {
-      showStatus(diaryStatus, '영어 일기를 먼저 작성해 줘.', 'error');
+      showStatus(diaryStatus, '영어 문장이나 일기를 먼저 작성해 줘.', 'error');
       diaryInput.focus();
       return;
     }
 
     if (trimmedDiary.length > 5000) {
-      showStatus(diaryStatus, '일기는 5,000자 이내로 작성해 줘.', 'error');
+      showStatus(diaryStatus, '문장은 5,000자 이내로 작성해 줘.', 'error');
       return;
     }
 
     // 로딩 상태 시작 (버튼 비활성화 및 스피너 표시)
     correctBtn.disabled = true;
     correctBtn.classList.add('is-loading');
-    correctBtn.querySelector('.btn-text').textContent = 'AI 튜터가 일기를 읽고 다듬는 중... ✍️';
+    correctBtn.querySelector('.btn-text').textContent = 'AI 튜터가 문장을 분석하고 해석하는 중... ✍️';
     hideStatus(diaryStatus);
 
     try {
@@ -117,36 +120,46 @@ document.addEventListener('DOMContentLoaded', () => {
       const resData = await response.json();
 
       if (!response.ok) {
-        const errorMsg = resData?.error?.message || '지금은 교정 결과를 가져오지 못했어. 잠시 후 다시 시도해 줘.';
+        const errorMsg = resData?.error?.message || '지금은 분석 결과를 가져오지 못했어. 잠시 후 다시 시도해 줘.';
         showStatus(diaryStatus, errorMsg, 'error');
         return;
       }
 
-      // 교정 결과 렌더링
-      const { correctedText, corrections, compliment } = resData.data;
-      renderDiaryResult(correctedText, corrections, compliment);
+      // 교정 및 유사 표현 결과 렌더링
+      renderAnalysisResult(resData.data, trimmedDiary);
 
       // 성공 시 결과 카드로 부드럽게 스크롤 이동
       resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     } catch (err) {
-      console.error('[일기 교정 통신 오류]', err);
+      console.error('[문장 분석 통신 오류]', err);
       showStatus(diaryStatus, '네트워크에 문제가 발생했어. 인터넷 연결을 확인하고 다시 시도해 줘.', 'error');
     } finally {
       // 로딩 상태 해제
       correctBtn.disabled = false;
       correctBtn.classList.remove('is-loading');
-      correctBtn.querySelector('.btn-text').textContent = '내 일기 교정하기 ✨';
+      correctBtn.querySelector('.btn-text').textContent = '문장 분석 & 교정하기 ✨';
     }
   });
 
-  /** 교정 결과 화면 표시 함수 (XSS 방지를 위해 안전한 DOM 조작 사용) */
-  function renderDiaryResult(correctedText, corrections, compliment) {
-    // 1. 교정문 출력 (textContent 사용)
-    correctedTextEl.textContent = correctedText;
+  /**
+   * 분석 및 교정 결과 화면 표시 함수
+   * 보안: XSS 방지를 위해 모든 텍스트 주입에 textContent와 createElement를 사용합니다.
+   */
+  function renderAnalysisResult(data, fallbackEnglish) {
+    const { original, correctedText, corrections, similarExpressions, compliment } = data;
 
-    // 2. 수정 사항 목록 출력
-    correctionsListEl.innerHTML = ''; // 기존 목록 초기화
+    // 1. 원문 및 자연스러운 한국어 해석 출력
+    const engText = original?.english || fallbackEnglish;
+    const korText = original?.korean || '자연스러운 우리말 해석입니다.';
+    originalEnglishEl.textContent = engText;
+    originalKoreanEl.textContent = korText;
+
+    // 2. 교정된 전체 문장 출력
+    correctedTextEl.textContent = correctedText || engText;
+
+    // 3. 수정 사항 목록 출력
+    correctionsListEl.innerHTML = '';
     if (!corrections || corrections.length === 0) {
       const noChangeItem = document.createElement('div');
       noChangeItem.className = 'correction-item';
@@ -187,8 +200,68 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // 3. 따뜻한 칭찬 출력 (textContent 사용)
-    complimentTextEl.textContent = `"${compliment}"`;
+    // 4. 유사 표현 (Similar Expressions) 및 뉘앙스 출력
+    similarListEl.innerHTML = '';
+    if (!similarExpressions || similarExpressions.length === 0) {
+      const emptySimilar = document.createElement('div');
+      emptySimilar.className = 'section-hint';
+      emptySimilar.textContent = '원문과 가장 어울리는 표준 표현입니다.';
+      similarListEl.appendChild(emptySimilar);
+    } else {
+      similarExpressions.forEach((expr, index) => {
+        const card = document.createElement('div');
+        card.className = 'similar-card';
+
+        // 카드 상단: 번호 및 영/한 짝맞춤
+        const header = document.createElement('div');
+        header.className = 'similar-header';
+
+        const indexBadge = document.createElement('span');
+        indexBadge.className = 'similar-index';
+        indexBadge.textContent = String(index + 1);
+
+        const pairDiv = document.createElement('div');
+        pairDiv.className = 'similar-pair';
+
+        const enEl = document.createElement('div');
+        enEl.className = 'similar-en english-font';
+        enEl.textContent = expr.english;
+
+        const krEl = document.createElement('div');
+        krEl.className = 'similar-kr';
+        krEl.textContent = expr.korean;
+
+        pairDiv.appendChild(enEl);
+        pairDiv.appendChild(krEl);
+
+        header.appendChild(indexBadge);
+        header.appendChild(pairDiv);
+        card.appendChild(header);
+
+        // 카드 하단: 뉘앙스 설명 박스
+        if (expr.nuance) {
+          const nuanceBox = document.createElement('div');
+          nuanceBox.className = 'nuance-box';
+
+          const nuanceLabel = document.createElement('span');
+          nuanceLabel.className = 'nuance-label';
+          nuanceLabel.textContent = '💡 뉘앙스 차이:';
+
+          const nuanceText = document.createElement('span');
+          nuanceText.className = 'nuance-text';
+          nuanceText.textContent = expr.nuance;
+
+          nuanceBox.appendChild(nuanceLabel);
+          nuanceBox.appendChild(nuanceText);
+          card.appendChild(nuanceBox);
+        }
+
+        similarListEl.appendChild(card);
+      });
+    }
+
+    // 5. 따뜻한 칭찬 출력
+    complimentTextEl.textContent = compliment ? `"${compliment}"` : '"Keep up the wonderful work!"';
 
     // 결과 카드 보이기
     resultCard.classList.remove('hidden');
@@ -318,4 +391,3 @@ document.addEventListener('DOMContentLoaded', () => {
   // 페이지 접속 시 자동으로 피드백 목록 1회 불러오기
   fetchFeedbackList();
 });
-
