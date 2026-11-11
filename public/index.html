@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dearly — 나만의 따뜻한 영어 일기 튜터</title>
+  <meta name="description" content="학생들을 위한 따뜻한 AI 영어 일기 문법 교정 및 응원 서비스 Dearly">
+  <link rel="stylesheet" href="/css/styles.css">
+  <!-- 구글 폰트 적용 (부드러운 한글 & 영문 글꼴) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Nunito:wght@400;600;700&family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- 1. 헤더 및 브랜드 소개 영역 -->
+    <header class="header">
+      <div class="brand-badge">Student English Diary</div>
+      <h1 class="logo">Dearly <span>✨</span></h1>
+      <p class="tagline">오늘 하루 있었던 일을 영어로 편하게 적어보세요.<br>Dearly가 다정하게 다듬어주고 따뜻한 응원을 건네줄게요.</p>
+    </header>
+
+    <!-- 2. 영어 일기 작성 카드 -->
+    <section class="card diary-card" aria-labelledby="diary-title">
+      <div class="card-header">
+        <h2 id="diary-title" class="card-title">오늘의 영어 일기 쓰기</h2>
+        <span class="card-subtitle">자유롭게 영어로 일기를 작성해 보세요.</span>
+      </div>
+
+      <div class="input-group">
+        <label for="diary-input" class="visually-hidden">영어 일기 입력란</label>
+        <textarea
+          id="diary-input"
+          class="text-input"
+          placeholder="Write your English diary here... (예: Today, I went to the park with my friends and ate delicious ice cream.)"
+          maxlength="5000"
+          rows="8"
+        ></textarea>
+        <div class="char-counter">
+          <span id="diary-char-count">0</span> / 5,000자
+        </div>
+      </div>
+
+      <!-- 상태 및 안내 메시지 영역 -->
+      <div id="diary-status" class="status-message" aria-live="polite" role="status"></div>
+
+      <div class="action-row">
+        <button id="correct-btn" class="btn btn-primary" type="button">
+          <span class="btn-text">내 일기 교정하기 ✨</span>
+          <span class="btn-spinner" aria-hidden="true"></span>
+        </button>
+      </div>
+    </section>
+
+    <!-- 3. 교정 결과 카드 (결과가 있을 때만 표시) -->
+    <section id="result-card" class="card result-card hidden" aria-labelledby="result-title">
+      <div class="card-header">
+        <h2 id="result-title" class="card-title">교정 결과 확인 📖</h2>
+        <span class="badge badge-success">교정 완료</span>
+      </div>
+
+      <!-- 3-1. 교정된 전체 일기 -->
+      <div class="result-block">
+        <h3 class="result-subtitle">Corrected Diary (교정된 일기)</h3>
+        <div id="corrected-text" class="result-content english-font"></div>
+      </div>
+
+      <!-- 3-2. 수정 설명 목록 -->
+      <div id="corrections-block" class="result-block">
+        <h3 class="result-subtitle">What changed (이렇게 다듬었어요)</h3>
+        <div id="corrections-list" class="corrections-list"></div>
+      </div>
+
+      <!-- 3-3. 따뜻한 영어 칭찬 한마디 카드 -->
+      <div class="compliment-card">
+        <div class="compliment-icon">💌</div>
+        <div class="compliment-body">
+          <h4 class="compliment-title">A Little Cheer for You</h4>
+          <p id="compliment-text" class="compliment-text english-font"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. 피드백 작성 카드 -->
+    <section class="card feedback-write-card" aria-labelledby="feedback-write-title">
+      <div class="card-header">
+        <h2 id="feedback-write-title" class="card-title">Dearly에게 의견 남기기 💬</h2>
+        <span class="card-subtitle">서비스를 써보고 느낀 점이나 개선할 점을 자유롭게 들려주세요.</span>
+      </div>
+
+      <div class="notice-box">
+        💡 <strong>안내:</strong> 남겨주신 의견은 다른 친구들에게도 공개됩니다. 이름, 전화번호 등 <strong>개인정보는 절대 적지 말아주세요.</strong>
+      </div>
+
+      <div class="input-group">
+        <label for="feedback-input" class="visually-hidden">피드백 입력란</label>
+        <textarea
+          id="feedback-input"
+          class="text-input"
+          placeholder="Dearly를 사용해보니 어떠셨나요? 따뜻한 피드백을 남겨주세요."
+          maxlength="1000"
+          rows="3"
+        ></textarea>
+        <div class="char-counter">
+          <span id="feedback-char-count">0</span> / 1,000자
+        </div>
+      </div>
+
+      <!-- 피드백 상태 메시지 -->
+      <div id="feedback-status" class="status-message" aria-live="polite" role="status"></div>
+
+      <div class="action-row">
+        <button id="feedback-submit-btn" class="btn btn-secondary" type="button">
+          <span class="btn-text">피드백 보내기 🚀</span>
+          <span class="btn-spinner" aria-hidden="true"></span>
+        </button>
+      </div>
+    </section>
+
+    <!-- 5. 피드백 목록 카드 -->
+    <section class="card feedback-list-card" aria-labelledby="feedback-list-title">
+      <div class="card-header list-header">
+        <div>
+          <h2 id="feedback-list-title" class="card-title">친구들이 남긴 이야기 📮</h2>
+          <span class="card-subtitle">최근 작성된 피드백 목록입니다.</span>
+        </div>
+        <button id="refresh-feedback-btn" class="btn btn-ghost" type="button" title="새로고침">
+          🔄 새로고침
+        </button>
+      </div>
+
+      <!-- 로딩 및 에러 상태 표시 -->
+      <div id="list-status" class="status-message" aria-live="polite" role="status"></div>
+
+      <!-- 실제 피드백 아이템들이 들어갈 컨테이너 -->
+      <div id="feedback-items" class="feedback-items"></div>
+    </section>
+
+    <!-- 푸터 -->
+    <footer class="footer">
+      <p>© 2026 Dearly. AI 피드백은 학습 참고용이며 완벽한 정답을 보장하지 않습니다.</p>
+    </footer>
+
+  </div>
+
+  <!-- 프런트엔드 애플리케이션 스크립트 -->
+  <script src="/js/app.js"></script>
+</body>
+</html>
+

@@ -1,0 +1,27 @@
+# ==========================================
+# [보안 최우선] Git 추적 제외 목록 (.gitignore)
+# ==========================================
+
+# 1. 민감한 환경 변수 및 비밀 키 파일 (절대 커밋 금지)
+.env
+.env.local
+.env.*.local
+
+# 2. 외부 종속성 라이브러리 폴더 (용량이 크므로 제외)
+node_modules/
+
+# 3. 로컬 로그 및 캐시 파일
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log
+
+# 4. Vercel 배포 캐시 및 설정
+.vercel/
+
+# 5. 로컬 압축 파일 및 임시 파일
+*.zip
+scratch/
+.DS_Store
+Thumbs.db
