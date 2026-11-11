@@ -125,6 +125,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      console.log('[Dearly 수신 데이터]', resData.data);
+
       // 교정 및 유사 표현 결과 렌더링
       renderAnalysisResult(resData.data, trimmedDiary);
 
@@ -147,20 +149,21 @@ document.addEventListener('DOMContentLoaded', () => {
    * 보안: XSS 방지를 위해 모든 텍스트 주입에 textContent와 createElement를 사용합니다.
    */
   function renderAnalysisResult(data, fallbackEnglish) {
-    const { original, correctedText, corrections, similarExpressions, compliment } = data;
+    if (!data) return;
 
-    // 1. 원문 및 자연스러운 한국어 해석 출력
-    const engText = original?.english || fallbackEnglish;
-    const korText = original?.korean || '자연스러운 우리말 해석입니다.';
+    // 1. 원문 및 자연스러운 한국어 해석 매핑 (다양한 키 fallback 지원)
+    const engText = data.original?.english || fallbackEnglish;
+    const korText = data.original?.korean || data.original?.translation || data.koreanTranslation || '원문에 대한 자연스러운 우리말 해석입니다.';
     originalEnglishEl.textContent = engText;
     originalKoreanEl.textContent = korText;
 
     // 2. 교정된 전체 문장 출력
-    correctedTextEl.textContent = correctedText || engText;
+    correctedTextEl.textContent = data.correctedText || engText;
 
     // 3. 수정 사항 목록 출력
     correctionsListEl.innerHTML = '';
-    if (!corrections || corrections.length === 0) {
+    const corrections = Array.isArray(data.corrections) ? data.corrections : [];
+    if (corrections.length === 0) {
       const noChangeItem = document.createElement('div');
       noChangeItem.className = 'correction-item';
       noChangeItem.textContent = '👏 문법이나 표현이 이미 훌륭해요! 특별히 수정할 부분이 없었어요.';
@@ -202,13 +205,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 4. 유사 표현 (Similar Expressions) 및 뉘앙스 출력
     similarListEl.innerHTML = '';
-    if (!similarExpressions || similarExpressions.length === 0) {
+    const similarList = Array.isArray(data.similarExpressions) 
+      ? data.similarExpressions 
+      : (Array.isArray(data.similar) ? data.similar : []);
+
+    if (similarList.length === 0) {
       const emptySimilar = document.createElement('div');
       emptySimilar.className = 'section-hint';
       emptySimilar.textContent = '원문과 가장 어울리는 표준 표현입니다.';
       similarListEl.appendChild(emptySimilar);
     } else {
-      similarExpressions.forEach((expr, index) => {
+      similarList.forEach((expr, index) => {
         const card = document.createElement('div');
         card.className = 'similar-card';
 
@@ -225,11 +232,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const enEl = document.createElement('div');
         enEl.className = 'similar-en english-font';
-        enEl.textContent = expr.english;
+        enEl.textContent = expr.english || expr.sentence || `유사 표현 ${index + 1}`;
 
         const krEl = document.createElement('div');
         krEl.className = 'similar-kr';
-        krEl.textContent = expr.korean;
+        krEl.textContent = expr.korean || expr.translation || expr.meaning || '자연스러운 우리말 해석입니다.';
 
         pairDiv.appendChild(enEl);
         pairDiv.appendChild(krEl);
@@ -239,7 +246,8 @@ document.addEventListener('DOMContentLoaded', () => {
         card.appendChild(header);
 
         // 카드 하단: 뉘앙스 설명 박스
-        if (expr.nuance) {
+        const nuanceContent = expr.nuance || expr.explanation || expr.difference;
+        if (nuanceContent) {
           const nuanceBox = document.createElement('div');
           nuanceBox.className = 'nuance-box';
 
@@ -249,7 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
           const nuanceText = document.createElement('span');
           nuanceText.className = 'nuance-text';
-          nuanceText.textContent = expr.nuance;
+          nuanceText.textContent = nuanceContent;
 
           nuanceBox.appendChild(nuanceLabel);
           nuanceBox.appendChild(nuanceText);
@@ -261,7 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 5. 따뜻한 칭찬 출력
-    complimentTextEl.textContent = compliment ? `"${compliment}"` : '"Keep up the wonderful work!"';
+    complimentTextEl.textContent = data.compliment ? `"${data.compliment}"` : '"Keep up the wonderful work!"';
 
     // 결과 카드 보이기
     resultCard.classList.remove('hidden');
